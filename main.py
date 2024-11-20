@@ -1,4 +1,6 @@
-from flask import Flask
+import os
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+from flask import Flask, request, redirect
 from api import api_bp
 from config import Config
 from services.x_service import XService
@@ -10,29 +12,48 @@ from error_handlers import register_error_handlers
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    app.debug = True  # Enable debug mode
 
-    oauth2_handler, oauth1_handler = setup_and_validate_oauth(app.config)
+    print("Registered routes:")
 
-    oauth2_handler.start_refresh_thread()
+    @app.route('/auth/twitter/start')
+    def start_oauth():
+        print("Starting OAuth flow")
+        oauth2_handler, oauth1_handler = setup_and_validate_oauth(app.config)
+        app.oauth2_handler = oauth2_handler
+        app.oauth1_handler = oauth1_handler
+        auth_url = oauth2_handler.get_auth_url()
+        return redirect(auth_url)
 
-    x_service = XService(oauth2_handler, oauth1_handler.api)
-    app.x_service = x_service
+    @app.route('/auth/twitter/callback')
+    def oauth_callback():
+        print("Callback received", request.url)
+        if not app.oauth2_handler:
+            return "OAuth flow not initiated", 400
 
-    airtable_service = AirtableService(app.config)
-    app.airtable_service = airtable_service
+        try:
+            app.oauth2_handler.initial_oauth2_setup(request.url)
+            app.oauth2_handler.start_refresh_thread()
 
-    combined_services = CombinedServices(airtable_service, x_service)
-    app.combined_services = combined_services
+            x_service = XService(app.oauth2_handler, app.oauth1_handler.api)
+            app.x_service = x_service
+            airtable_service = AirtableService(app.config)
+            app.airtable_service = airtable_service
+            app.combined_services = CombinedServices(airtable_service, x_service)
 
-    app.register_blueprint(api_bp, url_prefix='/api')
-
-    # Register error handlers
-    register_error_handlers(app)
+            return "Authentication successful!"
+        except Exception as e:
+            print(f"Callback error: {str(e)}")
+            return f"Authentication failed: {str(e)}", 400
 
     @app.route('/')
     def hello():
-        return "Greetings, your pseudo-X-API is up and running!"
+        return "API is running. Visit /auth/twitter/start to initialize."
 
+    app.register_blueprint(api_bp, url_prefix='/api')
+    register_error_handlers(app)
+
+    print([str(r) for r in app.url_map.iter_rules()])  # Print all registered routes
     return app
 
 if __name__ == '__main__':
