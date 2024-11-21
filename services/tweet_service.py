@@ -2,7 +2,7 @@ import os
 from config import Config
 from .process_x_response import process_x_response
 from .rate_limit_handler import handle_rate_limit
-
+import logging
 
 class TweetService:
     # Common tweet fields to request
@@ -189,3 +189,27 @@ class TweetService:
         # Now unfollow the user using their ID
         response = client.unfollow_user(user_data.id, user_auth=False)
         return response.data
+
+    # services/tweet_service.py - Add the new method
+    @handle_rate_limit
+    def get_user_metrics(self, username):
+        """Get user metrics from Twitter API v2"""
+        try:
+            client = self.oauth2_handler.get_client()
+            # Remove @ symbol if present
+            username = username.lstrip('@')
+
+            response = client.get_user(
+                username=username,
+                user_fields=['public_metrics'],
+                user_auth=False
+            )
+
+            if not response.data or not hasattr(response.data, 'public_metrics'):
+                raise ValueError("No public metrics found in user data")
+
+            return response.data.public_metrics
+
+        except Exception as e:
+            logging.error(f"Error getting user metrics: {str(e)}")
+            raise
