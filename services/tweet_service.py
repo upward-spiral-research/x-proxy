@@ -280,17 +280,34 @@ class TweetService:
                         return metrics
 
             except TooManyRequests as e:
+                # Log all headers from the response
+                self.logger.error(f"Rate limit exception: {str(e)}")
+                self.logger.error(f"Full response object: {dir(e.response)}")
+                self.logger.error(
+                    f"Response headers: {dict(e.response.headers)}")
+
+                # Try to get rate limit info
                 rate_limit_reset = e.response.headers.get('x-rate-limit-reset')
                 remaining_calls = e.response.headers.get(
                     'x-rate-limit-remaining')
                 rate_limit_window = e.response.headers.get(
                     'x-rate-limit-window')
 
-                # Log rate limit information
-                self.logger.warning(
-                    f"Rate limit hit: Reset at {rate_limit_reset}, "
-                    f"Remaining calls: {remaining_calls}, "
-                    f"Window: {rate_limit_window}")
+                # Also try alternate header names
+                if not rate_limit_reset:
+                    rate_limit_reset = e.response.headers.get(
+                        'ratelimit-reset')
+                if not remaining_calls:
+                    remaining_calls = e.response.headers.get(
+                        'ratelimit-remaining')
+                if not rate_limit_window:
+                    rate_limit_window = e.response.headers.get(
+                        'ratelimit-window')
+
+                # Log what we found
+                self.logger.error(
+                    f"Rate limit headers found: reset={rate_limit_reset}, remaining={remaining_calls}, window={rate_limit_window}"
+                )
 
                 if cached_count is not None:
                     return {
@@ -299,7 +316,10 @@ class TweetService:
                         'rate_limit_info': {
                             'reset_at': rate_limit_reset,
                             'remaining_calls': remaining_calls,
-                            'window': rate_limit_window
+                            'window': rate_limit_window,
+                            'all_headers':
+                            dict(e.response.headers
+                                 )  # Include all headers in response
                         }
                     }
                 return {
@@ -308,11 +328,16 @@ class TweetService:
                     'rate_limit_info': {
                         'reset_at': rate_limit_reset,
                         'remaining_calls': remaining_calls,
-                        'window': rate_limit_window
+                        'window': rate_limit_window,
+                        'all_headers':
+                        dict(e.response.headers
+                             )  # Include all headers in response
                     }
                 }
 
             except Exception as e:
+                self.logger.error(f"Non-rate-limit exception: {str(e)}",
+                                  exc_info=True)
                 if cached_count is not None:
                     return {'followers_count': cached_count, 'cached': True}
                 return {'followers_count': 0, 'error': str(e)}
@@ -320,6 +345,7 @@ class TweetService:
             return {'followers_count': 0, 'error': 'No data available'}
 
         except Exception as e:
+            self.logger.error(f"Outer exception: {str(e)}", exc_info=True)
             if cached_count is not None:
                 return {'followers_count': cached_count, 'cached': True}
             return {'followers_count': 0, 'error': str(e)}
