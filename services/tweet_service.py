@@ -6,6 +6,8 @@ from .rate_limit_handler import handle_rate_limit
 import logging
 from threading import Lock
 
+logging.basicConfig(level=logging.INFO)
+
 
 class MetricsCache:
 
@@ -13,7 +15,7 @@ class MetricsCache:
         self.cache = {}
         self.cache_duration = cache_duration
         self.lock = Lock()
-        self.logger = logging.getLogger('MetricsCache')
+        self._logger = logging.getLogger('MetricsCache')
 
     def get(self, username):
         with self.lock:
@@ -21,15 +23,15 @@ class MetricsCache:
             if cached_data:
                 timestamp, metrics = cached_data
                 if datetime.now() - timestamp < self.cache_duration:
-                    logger.debug(f"Cache hit for {username}")
+                    self._logger.debug(f"Cache hit for {username}")
                     return metrics
-            logger.debug(f"Cache miss for {username}")
+            self._logger.debug(f"Cache miss for {username}")
             return None
 
     def set(self, username, metrics):
         with self.lock:
             self.cache[username] = (datetime.now(), metrics)
-            logger.debug(f"Updated cache for {username}")
+            self._logger.debug(f"Updated cache for {username}")
 
 
 class TweetService:
@@ -219,14 +221,16 @@ class TweetService:
         try:
             # Remove @ symbol if present
             username = username.lstrip('@')
+            self._logger.debug(f"Getting metrics for {username}")
 
             # Check cache first
             cached_metrics = self.metrics_cache.get(username)
             if cached_metrics is not None:
-                logger.debug(f"Returning cached metrics for {username}")
+                self._logger.debug(f"Using cached metrics for {username}")
                 return cached_metrics
 
             # If not in cache, fetch from Twitter
+            self._logger.debug(f"Fetching fresh metrics for {username}")
             client = self.oauth2_handler.get_client()
             response = client.get_user(username=username,
                                        user_fields=['public_metrics'],
@@ -244,11 +248,11 @@ class TweetService:
             return metrics
 
         except Exception as e:
-            logger.error(f"Error getting user metrics: {str(e)}")
+            self._logger.error(f"Error getting user metrics: {str(e)}")
             # Try to return cached data if available
             cached_metrics = self.metrics_cache.get(username)
             if cached_metrics is not None:
-                logger.info(
+                self._logger.info(
                     f"Returning cached metrics after error for {username}")
                 return cached_metrics
             raise
