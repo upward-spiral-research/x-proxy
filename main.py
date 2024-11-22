@@ -12,7 +12,7 @@ from error_handlers import register_error_handlers
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
-    app.debug = False  # Enable debug mode
+    app.debug = True  # Enable debug mode
 
     print("Registered routes:")
 

@@ -1,37 +1,8 @@
-from datetime import timedelta
 import os
 from config import Config
 from .process_x_response import process_x_response
 from .rate_limit_handler import handle_rate_limit
 import logging
-from threading import Lock
-
-logging.basicConfig(level=logging.INFO)
-metrics_logger = logging.getLogger('metrics')
-
-
-class MetricsCache:
-
-    def __init__(self, cache_duration=timedelta(minutes=15)):
-        self.cache = {}
-        self.cache_duration = cache_duration
-        self.lock = Lock()
-
-    def get(self, username):
-        with self.lock:
-            cached_data = self.cache.get(username)
-            if cached_data:
-                timestamp, metrics = cached_data
-                if datetime.now() - timestamp < self.cache_duration:
-                    metrics_logger.debug(f"Cache hit for {username}")
-                    return metrics
-            metrics_logger.debug(f"Cache miss for {username}")
-            return None
-
-    def set(self, username, metrics):
-        with self.lock:
-            self.cache[username] = (datetime.now(), metrics)
-            metrics_logger.debug(f"Updated cache for {username}")
 
 
 class TweetService:
@@ -60,7 +31,6 @@ class TweetService:
     def __init__(self, oauth2_handler, media_service):
         self.oauth2_handler = oauth2_handler
         self.media_service = media_service
-        self.metrics_cache = MetricsCache()
 
     @handle_rate_limit
     def post_reply(self, tweet_id, text):
@@ -214,23 +184,14 @@ class TweetService:
         return response.data
 
     # services/tweet_service.py - Add the new method
-    @handle_rate_limit
+    #@handle_rate_limit
     def get_user_metrics(self, username):
-        """Get user metrics from Twitter API v2 with caching"""
+        """Get user metrics from Twitter API v2"""
         try:
+            client = self.oauth2_handler.get_client()
             # Remove @ symbol if present
             username = username.lstrip('@')
-            #metrics_logger.debug(f"Getting metrics for {username}")
 
-            # Check cache first
-            cached_metrics = self.metrics_cache.get(username)
-            #if cached_metrics is not None:
-            #metrics_logger.debug(f"Using cached metrics for {username}")
-            #return cached_metrics
-
-            # If not in cache, fetch from Twitter
-            metrics_logger.debug(f"Fetching fresh metrics for {username}")
-            client = self.oauth2_handler.get_client()
             response = client.get_user(username=username,
                                        user_fields=['public_metrics'],
                                        user_auth=False)
@@ -239,19 +200,8 @@ class TweetService:
                                                 'public_metrics'):
                 raise ValueError("No public metrics found in user data")
 
-            metrics = response.data.public_metrics
-
-            # Update cache with new metrics
-            self.metrics_cache.set(username, metrics)
-
-            return metrics
+            return response.data.public_metrics
 
         except Exception as e:
-            #metrics_logger.error(f"Error getting user metrics: {str(e)}")
-            # Try to return cached data if available
-            cached_metrics = self.metrics_cache.get(username)
-            if cached_metrics is not None:
-                #metrics_logger.info(
-                #f"Returning cached metrics after error for {username}")
-                return cached_metrics
+            logging.error(f"Error getting user metrics: {str(e)}")
             raise

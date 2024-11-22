@@ -1,4 +1,3 @@
-import logging
 from .tweet_service import TweetService
 from .media_service import MediaService
 
