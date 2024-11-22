@@ -4,6 +4,7 @@ from config import Config
 from .process_x_response import process_x_response
 from .rate_limit_handler import handle_rate_limit
 import logging
+from threading import Lock
 
 
 class MetricsCache:
