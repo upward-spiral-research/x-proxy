@@ -220,13 +220,13 @@ class TweetService:
         try:
             # Remove @ symbol if present
             username = username.lstrip('@')
-            metrics_logger.debug(f"Getting metrics for {username}")
+            #metrics_logger.debug(f"Getting metrics for {username}")
 
             # Check cache first
             cached_metrics = self.metrics_cache.get(username)
-            if cached_metrics is not None:
-                metrics_logger.debug(f"Using cached metrics for {username}")
-                return cached_metrics
+            #if cached_metrics is not None:
+            #metrics_logger.debug(f"Using cached metrics for {username}")
+            #return cached_metrics
 
             # If not in cache, fetch from Twitter
             metrics_logger.debug(f"Fetching fresh metrics for {username}")
@@ -247,11 +247,11 @@ class TweetService:
             return metrics
 
         except Exception as e:
-            metrics_logger.error(f"Error getting user metrics: {str(e)}")
+            #metrics_logger.error(f"Error getting user metrics: {str(e)}")
             # Try to return cached data if available
             cached_metrics = self.metrics_cache.get(username)
             if cached_metrics is not None:
-                metrics_logger.info(
-                    f"Returning cached metrics after error for {username}")
+                #metrics_logger.info(
+                #f"Returning cached metrics after error for {username}")
                 return cached_metrics
             raise
