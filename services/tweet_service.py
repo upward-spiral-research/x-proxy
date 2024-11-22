@@ -20,15 +20,45 @@ class FollowerCache:
 
     def __init__(self, cache_file="follower_cache.json"):
         self.cache_file = cache_file
-        self.cache = self._load_cache()
+        self.cache = {}  # Initialize empty cache first
         self.lock = Lock()
-        # Much longer cache duration since we have limited user requests
-        self.cache_duration = timedelta(
-            hours=12)  # Increased from 6 to 12 hours
+        self.cache_duration = timedelta(hours=12)
         self.last_request = None
         self.user_daily_limit = 100
         self.user_daily_requests = []
         self.user_daily_reset = None
+        # Load cache after initialization
+        self.load_cache()
+
+    def load_cache(self):
+        try:
+            if os.path.exists(self.cache_file):
+                with open(self.cache_file, 'r') as f:
+                    data = json.load(f)
+                    self.cache = {
+                        k: {
+                            'count': v['count'],
+                            'timestamp': datetime.fromisoformat(v['timestamp'])
+                        }
+                        for k, v in data.items()
+                    }
+        except Exception as e:
+            logging.error(f"Error loading cache: {e}")
+            self.cache = {}
+
+    def save_cache(self):
+        try:
+            with open(self.cache_file, 'w') as f:
+                data = {
+                    k: {
+                        'count': v['count'],
+                        'timestamp': v['timestamp'].isoformat()
+                    }
+                    for k, v in self.cache.items()
+                }
+                json.dump(data, f)
+        except Exception as e:
+            logging.error(f"Error saving cache: {e}")
 
     def can_make_request(self, username):
         with self.lock:
@@ -59,7 +89,6 @@ class FollowerCache:
             return True
 
     def update_rate_limits(self, headers):
-        """Update rate limit info from Twitter response"""
         with self.lock:
             reset_time = headers.get('x-user-limit-24hour-reset')
             if reset_time:
@@ -88,7 +117,7 @@ class FollowerCache:
                 'count': count,
                 'timestamp': datetime.now()
             }
-            self._save_cache()
+            self.save_cache()
 
 
 class TweetService:
