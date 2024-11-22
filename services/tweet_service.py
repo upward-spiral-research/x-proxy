@@ -1,8 +1,34 @@
+from datetime import timedelta
 import os
 from config import Config
 from .process_x_response import process_x_response
 from .rate_limit_handler import handle_rate_limit
 import logging
+
+
+class MetricsCache:
+
+    def __init__(self, cache_duration=timedelta(minutes=15)):
+        self.cache = {}
+        self.cache_duration = cache_duration
+        self.lock = Lock()
+
+    def get(self, username):
+        with self.lock:
+            cached_data = self.cache.get(username)
+            if cached_data:
+                timestamp, metrics = cached_data
+                if datetime.now() - timestamp < self.cache_duration:
+                    logger.debug(f"Cache hit for {username}")
+                    return metrics
+            logger.debug(f"Cache miss for {username}")
+            return None
+
+    def set(self, username, metrics):
+        with self.lock:
+            self.cache[username] = (datetime.now(), metrics)
+            logger.debug(f"Updated cache for {username}")
+
 
 class TweetService:
     # Common tweet fields to request
@@ -14,8 +40,9 @@ class TweetService:
     # Common expansions to request
     EXPANSIONS = [
         'author_id', 'referenced_tweets.id', 'referenced_tweets.id.author_id',
-        'edit_history_tweet_ids', 'in_reply_to_user_id', 'attachments.media_keys',
-        'attachments.poll_ids', 'geo.place_id', 'entities.mentions.username'
+        'edit_history_tweet_ids', 'in_reply_to_user_id',
+        'attachments.media_keys', 'attachments.poll_ids', 'geo.place_id',
+        'entities.mentions.username'
     ]
 
     # Common user fields to request
@@ -29,12 +56,13 @@ class TweetService:
     def __init__(self, oauth2_handler, media_service):
         self.oauth2_handler = oauth2_handler
         self.media_service = media_service
+        self.metrics_cache = MetricsCache()
 
     @handle_rate_limit
     def post_reply(self, tweet_id, text):
         client = self.oauth2_handler.get_client()
-        response = client.create_tweet(
-            text=text, in_reply_to_tweet_id=tweet_id)
+        response = client.create_tweet(text=text,
+                                       in_reply_to_tweet_id=tweet_id)
         return response.data['id']
 
     @handle_rate_limit
@@ -47,8 +75,7 @@ class TweetService:
             # start_time (datetime.datetime | str | None) – YYYY-MM-DDTHH:mm:ssZ (ISO 8601/RFC 3339). The oldest UTC timestamp from which the Tweets will be provided. Timestamp is in second granularity and is inclusive (for example, 12:00:01 includes the first second of the minute).
             expansions=self.EXPANSIONS,
             tweet_fields=self.TWEET_FIELDS,
-            user_fields=self.USER_FIELDS
-        )
+            user_fields=self.USER_FIELDS)
         return process_x_response(response)
 
     @handle_rate_limit
@@ -70,30 +97,25 @@ class TweetService:
             text=text,
             in_reply_to_tweet_id=in_reply_to_tweet_id,
             media_ids=media_ids,
-            user_auth=False
-        )
+            user_auth=False)
         return response.data['id']
 
     @handle_rate_limit
     def get_tweet(self, tweet_id):
         client = self.oauth2_handler.get_client()
-        response = client.get_tweet(
-            id=tweet_id,
-            expansions=self.EXPANSIONS,
-            tweet_fields=self.TWEET_FIELDS,
-            user_fields=self.USER_FIELDS
-        )
+        response = client.get_tweet(id=tweet_id,
+                                    expansions=self.EXPANSIONS,
+                                    tweet_fields=self.TWEET_FIELDS,
+                                    user_fields=self.USER_FIELDS)
         return process_x_response(response)
 
     @handle_rate_limit
     def search_recent_tweets(self, query):
         client = self.oauth2_handler.get_client()
-        response = client.search_recent_tweets(
-            query,
-            expansions=self.EXPANSIONS,
-            tweet_fields=self.TWEET_FIELDS,
-            user_fields=self.USER_FIELDS
-        )
+        response = client.search_recent_tweets(query,
+                                               expansions=self.EXPANSIONS,
+                                               tweet_fields=self.TWEET_FIELDS,
+                                               user_fields=self.USER_FIELDS)
         return process_x_response(response)
 
     @handle_rate_limit
@@ -123,8 +145,7 @@ class TweetService:
             max_results=100,  # Adjust as needed
             expansions=self.EXPANSIONS,
             tweet_fields=self.TWEET_FIELDS,
-            user_fields=self.USER_FIELDS
-        )
+            user_fields=self.USER_FIELDS)
         thread = process_x_response(response)
 
         # If no tweets were found in the conversation, return just the requested tweet
@@ -148,14 +169,12 @@ class TweetService:
     @handle_rate_limit
     def get_home_timeline(self, max_results=15, pagination_token=None):
         client = self.oauth2_handler.get_client()
-        response = client.get_home_timeline(
-            max_results=max_results,
-            pagination_token=pagination_token,
-            expansions=self.EXPANSIONS,
-            tweet_fields=self.TWEET_FIELDS,
-            user_fields=self.USER_FIELDS,
-            user_auth=False
-        )
+        response = client.get_home_timeline(max_results=max_results,
+                                            pagination_token=pagination_token,
+                                            expansions=self.EXPANSIONS,
+                                            tweet_fields=self.TWEET_FIELDS,
+                                            user_fields=self.USER_FIELDS,
+                                            user_auth=False)
         return process_x_response(response)
 
     @handle_rate_limit
@@ -193,23 +212,40 @@ class TweetService:
     # services/tweet_service.py - Add the new method
     @handle_rate_limit
     def get_user_metrics(self, username):
-        """Get user metrics from Twitter API v2"""
+        """Get user metrics from Twitter API v2 with caching"""
         try:
-            client = self.oauth2_handler.get_client()
             # Remove @ symbol if present
             username = username.lstrip('@')
 
-            response = client.get_user(
-                username=username,
-                user_fields=['public_metrics'],
-                user_auth=False
-            )
+            # Check cache first
+            cached_metrics = self.metrics_cache.get(username)
+            if cached_metrics is not None:
+                logger.debug(f"Returning cached metrics for {username}")
+                return cached_metrics
 
-            if not response.data or not hasattr(response.data, 'public_metrics'):
+            # If not in cache, fetch from Twitter
+            client = self.oauth2_handler.get_client()
+            response = client.get_user(username=username,
+                                       user_fields=['public_metrics'],
+                                       user_auth=False)
+
+            if not response.data or not hasattr(response.data,
+                                                'public_metrics'):
                 raise ValueError("No public metrics found in user data")
 
-            return response.data.public_metrics
+            metrics = response.data.public_metrics
+
+            # Update cache with new metrics
+            self.metrics_cache.set(username, metrics)
+
+            return metrics
 
         except Exception as e:
-            logging.error(f"Error getting user metrics: {str(e)}")
+            logger.error(f"Error getting user metrics: {str(e)}")
+            # Try to return cached data if available
+            cached_metrics = self.metrics_cache.get(username)
+            if cached_metrics is not None:
+                logger.info(
+                    f"Returning cached metrics after error for {username}")
+                return cached_metrics
             raise
