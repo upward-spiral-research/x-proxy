@@ -19,10 +19,12 @@ class FollowerCache:
 
     def __init__(self, cache_file="follower_cache.json"):
         self.cache_file = cache_file
-        self.lock = Lock()
         self.cache = self._load_cache()
+        self.lock = Lock()
         self.cache_duration = timedelta(hours=6)
-        self.min_update_interval = timedelta(hours=1)
+        self.last_request_time = None
+        self.MIN_REQUEST_INTERVAL = timedelta(hours=1)
+        self.logger = logging.getLogger('FollowerCache')
 
     def _load_cache(self):
         try:
@@ -31,14 +33,19 @@ class FollowerCache:
                     data = json.load(f)
                     return {
                         k: {
-                            'count': v['count'],
-                            'timestamp': datetime.fromisoformat(v['timestamp'])
+                            'count':
+                            v['count'],
+                            'timestamp':
+                            datetime.fromisoformat(v['timestamp']),
+                            'last_request':
+                            datetime.fromisoformat(v['last_request'])
+                            if 'last_request' in v else None
                         }
                         for k, v in data.items()
                     }
             return {}
         except Exception as e:
-            logger.error(f"Error loading cache: {e}")
+            self.logger.error(f"Error loading cache: {e}")
             return {}
 
     def _save_cache(self):
@@ -46,38 +53,54 @@ class FollowerCache:
             with open(self.cache_file, 'w') as f:
                 data = {
                     k: {
-                        'count': v['count'],
-                        'timestamp': v['timestamp'].isoformat()
+                        'count':
+                        v['count'],
+                        'timestamp':
+                        v['timestamp'].isoformat(),
+                        'last_request':
+                        v['last_request'].isoformat()
+                        if v.get('last_request') else None
                     }
                     for k, v in self.cache.items()
                 }
                 json.dump(data, f)
         except Exception as e:
-            logger.error(f"Error saving cache: {e}")
+            self.logger.error(f"Error saving cache: {e}")
 
-    def get(self, username):
+    def can_make_request(self, username):
         with self.lock:
-            cached_data = self.cache.get(username)
-            if cached_data:
-                return cached_data['count']
-            return None
-
-    def set(self, username, count):
-        with self.lock:
-            self.cache[username] = {
-                'count': count,
-                'timestamp': datetime.now()
-            }
-            self._save_cache()
-
-    def needs_update(self, username):
-        with self.lock:
+            now = datetime.now()
             cached_data = self.cache.get(username)
             if not cached_data:
                 return True
+            last_request = cached_data.get('last_request')
+            if not last_request or (now -
+                                    last_request) > self.MIN_REQUEST_INTERVAL:
+                return True
+            return False
+
+    def get_follower_count(self, username):
+        with self.lock:
+            cached_data = self.cache.get(username)
+            if cached_data:
+                return cached_data['count'], True
+            return None, False
+
+    def set_follower_count(self, username, count):
+        with self.lock:
             now = datetime.now()
-            age = now - cached_data['timestamp']
-            return age > self.cache_duration
+            self.cache[username] = {
+                'count': count,
+                'timestamp': now,
+                'last_request': now
+            }
+            self._save_cache()
+
+    def update_last_request(self, username):
+        with self.lock:
+            if username in self.cache:
+                self.cache[username]['last_request'] = datetime.now()
+                self._save_cache()
 
 
 class TweetService:
