@@ -6,6 +6,13 @@ import logging
 from datetime import datetime, timedelta
 from threading import Lock
 
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)])
+
+logger = logging.getLogger(__name__)
+
 
 class FollowerCache:
 
@@ -281,10 +288,9 @@ class TweetService:
 
             except TooManyRequests as e:
                 # Log all headers from the response
-                self.logger.error(f"Rate limit exception: {str(e)}")
-                self.logger.error(f"Full response object: {dir(e.response)}")
-                self.logger.error(
-                    f"Response headers: {dict(e.response.headers)}")
+                logger.error(f"Rate limit exception: {str(e)}")
+                logger.error(f"Full response object: {dir(e.response)}")
+                logger.error(f"Response headers: {dict(e.response.headers)}")
 
                 # Try to get rate limit info
                 rate_limit_reset = e.response.headers.get('x-rate-limit-reset')
@@ -305,7 +311,7 @@ class TweetService:
                         'ratelimit-window')
 
                 # Log what we found
-                self.logger.error(
+                logger.error(
                     f"Rate limit headers found: reset={rate_limit_reset}, remaining={remaining_calls}, window={rate_limit_window}"
                 )
 
@@ -336,8 +342,8 @@ class TweetService:
                 }
 
             except Exception as e:
-                self.logger.error(f"Non-rate-limit exception: {str(e)}",
-                                  exc_info=True)
+                logger.error(f"Non-rate-limit exception: {str(e)}",
+                             exc_info=True)
                 if cached_count is not None:
                     return {'followers_count': cached_count, 'cached': True}
                 return {'followers_count': 0, 'error': str(e)}
@@ -345,7 +351,7 @@ class TweetService:
             return {'followers_count': 0, 'error': 'No data available'}
 
         except Exception as e:
-            self.logger.error(f"Outer exception: {str(e)}", exc_info=True)
+            logger.error(f"Outer exception: {str(e)}", exc_info=True)
             if cached_count is not None:
                 return {'followers_count': cached_count, 'cached': True}
             return {'followers_count': 0, 'error': str(e)}
