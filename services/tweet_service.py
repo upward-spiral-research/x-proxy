@@ -13,6 +13,7 @@ class MetricsCache:
         self.cache = {}
         self.cache_duration = cache_duration
         self.lock = Lock()
+        self.logger = logging.getLogger('MetricsCache')
 
     def get(self, username):
         with self.lock:
@@ -58,6 +59,7 @@ class TweetService:
         self.oauth2_handler = oauth2_handler
         self.media_service = media_service
         self.metrics_cache = MetricsCache()
+        self.logger = logging.getLogger('TweetService')
 
     @handle_rate_limit
     def post_reply(self, tweet_id, text):
