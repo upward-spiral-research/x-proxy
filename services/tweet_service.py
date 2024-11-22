@@ -5,6 +5,7 @@ from .rate_limit_handler import handle_rate_limit
 import logging
 from datetime import datetime, timedelta
 from threading import Lock
+import sys
 
 logging.basicConfig(
     level=logging.DEBUG,
