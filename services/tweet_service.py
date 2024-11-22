@@ -3,6 +3,106 @@ from config import Config
 from .process_x_response import process_x_response
 from .rate_limit_handler import handle_rate_limit
 import logging
+from datetime import datetime, timedelta
+from threading import Lock
+
+
+class FollowerCache:
+
+    def __init__(self, cache_file="follower_cache.json"):
+        self.cache_file = cache_file
+        self.cache = self._load_cache()
+        self.lock = Lock()
+
+        # Much longer cache duration - only update a few times per day
+        self.cache_duration = timedelta(hours=6)  # Cache for 6 hours
+
+        # Conservative rate limits (staying well below Twitter's limits)
+        self.last_request_time = None
+        # Enforce minimum 1 hour between updates
+        self.MIN_REQUEST_INTERVAL = timedelta(hours=1)
+
+    def _load_cache(self):
+        try:
+            if os.path.exists(self.cache_file):
+                with open(self.cache_file, 'r') as f:
+                    data = json.load(f)
+                    return {
+                        k: {
+                            'count':
+                            v['count'],
+                            'timestamp':
+                            datetime.fromisoformat(v['timestamp']),
+                            'last_request':
+                            datetime.fromisoformat(v['last_request'])
+                            if 'last_request' in v else None
+                        }
+                        for k, v in data.items()
+                    }
+            return {}
+        except Exception as e:
+            logging.error(f"Error loading cache: {e}")
+            return {}
+
+    def _save_cache(self):
+        try:
+            with open(self.cache_file, 'w') as f:
+                data = {
+                    k: {
+                        'count':
+                        v['count'],
+                        'timestamp':
+                        v['timestamp'].isoformat(),
+                        'last_request':
+                        v['last_request'].isoformat()
+                        if v.get('last_request') else None
+                    }
+                    for k, v in self.cache.items()
+                }
+                json.dump(data, f)
+        except Exception as e:
+            logging.error(f"Error saving cache: {e}")
+
+    def can_make_request(self, username):
+        """Check if enough time has passed to make a new request"""
+        with self.lock:
+            now = datetime.now()
+            cached_data = self.cache.get(username)
+
+            if not cached_data:
+                # First request for this username
+                return True
+
+            last_request = cached_data.get('last_request')
+            if not last_request or (now -
+                                    last_request) > self.MIN_REQUEST_INTERVAL:
+                return True
+
+            return False
+
+    def get_follower_count(self, username):
+        with self.lock:
+            cached_data = self.cache.get(username)
+            if cached_data:
+                # Always return cached data if we have it
+                return cached_data['count'], True
+            return None, False
+
+    def set_follower_count(self, username, count):
+        with self.lock:
+            now = datetime.now()
+            self.cache[username] = {
+                'count': count,
+                'timestamp': now,
+                'last_request': now
+            }
+            self._save_cache()
+
+    def update_last_request(self, username):
+        with self.lock:
+            if username in self.cache:
+                self.cache[username]['last_request'] = datetime.now()
+                self._save_cache()
 
 
 class TweetService:
@@ -31,6 +131,7 @@ class TweetService:
     def __init__(self, oauth2_handler, media_service):
         self.oauth2_handler = oauth2_handler
         self.media_service = media_service
+        self.follower_cache = FollowerCache()
 
     @handle_rate_limit
     def post_reply(self, tweet_id, text):
@@ -184,24 +285,48 @@ class TweetService:
         return response.data
 
     # services/tweet_service.py - Add the new method
-    #@handle_rate_limit
+    @handle_rate_limit
     def get_user_metrics(self, username):
-        """Get user metrics from Twitter API v2"""
+        """Get user metrics with aggressive caching"""
         try:
-            client = self.oauth2_handler.get_client()
-            # Remove @ symbol if present
-            username = username.lstrip('@')
+            # Always check cache first
+            cached_count, is_cached = self.follower_cache.get_follower_count(
+                username)
+            if is_cached:
+                return {'followers_count': cached_count}
 
+            # Only try to update if we can make a request
+            if not self.follower_cache.can_make_request(username):
+                # If we have any cached data, return it even if old
+                if cached_count is not None:
+                    return {'followers_count': cached_count}
+                # Only raise error if we have no cached data at all
+                raise ValueError(
+                    "No cached data available and rate limit in effect")
+
+            # Make API request
+            client = self.oauth2_handler.get_client()
             response = client.get_user(username=username,
                                        user_fields=['public_metrics'],
                                        user_auth=False)
 
             if not response.data or not hasattr(response.data,
                                                 'public_metrics'):
+                if cached_count is not None:
+                    return {'followers_count': cached_count}
                 raise ValueError("No public metrics found in user data")
 
-            return response.data.public_metrics
+            metrics = response.data.public_metrics
+
+            # Cache the follower count
+            if 'followers_count' in metrics:
+                self.follower_cache.set_follower_count(
+                    username, metrics['followers_count'])
+
+            return metrics
 
         except Exception as e:
-            logging.error(f"Error getting user metrics: {str(e)}")
+            # Always try to return cached data on any error
+            if cached_count is not None:
+                return {'followers_count': cached_count}
             raise
