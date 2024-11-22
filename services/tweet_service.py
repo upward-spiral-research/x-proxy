@@ -254,21 +254,19 @@ class TweetService:
     # services/tweet_service.py - Add the new method
     #@handle_rate_limit
     def get_user_metrics(self, username):
-        """Get user metrics with aggressive caching"""
         try:
-            # Always check cache first
-            cached_count = self.follower_cache.get(username)
+            # Check cache first
+            cached_count, is_cached = self.follower_cache.get_follower_count(
+                username)
 
-            # If we have cached data and don't need an update, return it
-            if cached_count is not None and not self.follower_cache.needs_update(
-                    username):
-                self.logger.debug(
-                    f"Returning cached count for {username}: {cached_count}")
-                return {'followers_count': cached_count}
+            # If we can't make a request and have cached data, return it
+            if not self.follower_cache.can_make_request(username):
+                if cached_count is not None:
+                    return {'followers_count': cached_count, 'cached': True}
+                return {'followers_count': 0, 'error': 'Rate limited'}
 
-            # Only try to update if we need to
+            # Try to get fresh data
             try:
-                # Make API request
                 client = self.oauth2_handler.get_client()
                 response = client.get_user(username=username,
                                            user_fields=['public_metrics'],
@@ -277,31 +275,17 @@ class TweetService:
                 if response.data and hasattr(response.data, 'public_metrics'):
                     metrics = response.data.public_metrics
                     if 'followers_count' in metrics:
-                        self.follower_cache.set(username,
-                                                metrics['followers_count'])
+                        self.follower_cache.set_follower_count(
+                            username, metrics['followers_count'])
                         return metrics
-
-            except TooManyRequests:
-                self.logger.warning(
-                    f"Rate limit hit while updating {username}")
-                if cached_count is not None:
-                    return {'followers_count': cached_count}
-                raise
             except Exception as e:
-                self.logger.error(
-                    f"Error updating metrics for {username}: {e}")
                 if cached_count is not None:
-                    return {'followers_count': cached_count}
-                raise
+                    return {'followers_count': cached_count, 'cached': True}
+                return {'followers_count': 0, 'error': str(e)}
 
-            # If we got here and have cached data, return it
-            if cached_count is not None:
-                return {'followers_count': cached_count}
-
-            raise ValueError("Could not retrieve follower count")
+            return {'followers_count': 0, 'error': 'No data available'}
 
         except Exception as e:
-            self.logger.error(f"Error in get_user_metrics: {str(e)}")
             if cached_count is not None:
-                return {'followers_count': cached_count}
-            raise
+                return {'followers_count': cached_count, 'cached': True}
+            return {'followers_count': 0, 'error': str(e)}
