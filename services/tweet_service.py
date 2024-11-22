@@ -278,6 +278,40 @@ class TweetService:
                         self.follower_cache.set_follower_count(
                             username, metrics['followers_count'])
                         return metrics
+
+            except TooManyRequests as e:
+                rate_limit_reset = e.response.headers.get('x-rate-limit-reset')
+                remaining_calls = e.response.headers.get(
+                    'x-rate-limit-remaining')
+                rate_limit_window = e.response.headers.get(
+                    'x-rate-limit-window')
+
+                # Log rate limit information
+                self.logger.warning(
+                    f"Rate limit hit: Reset at {rate_limit_reset}, "
+                    f"Remaining calls: {remaining_calls}, "
+                    f"Window: {rate_limit_window}")
+
+                if cached_count is not None:
+                    return {
+                        'followers_count': cached_count,
+                        'cached': True,
+                        'rate_limit_info': {
+                            'reset_at': rate_limit_reset,
+                            'remaining_calls': remaining_calls,
+                            'window': rate_limit_window
+                        }
+                    }
+                return {
+                    'followers_count': 0,
+                    'error': 'Rate limited',
+                    'rate_limit_info': {
+                        'reset_at': rate_limit_reset,
+                        'remaining_calls': remaining_calls,
+                        'window': rate_limit_window
+                    }
+                }
+
             except Exception as e:
                 if cached_count is not None:
                     return {'followers_count': cached_count, 'cached': True}
