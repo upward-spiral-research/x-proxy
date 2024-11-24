@@ -20,104 +20,88 @@ class FollowerCache:
 
     def __init__(self, cache_file="follower_cache.json"):
         self.cache_file = cache_file
-        self.cache = {}  # Initialize empty cache first
+        self.cache = self._load_cache()
         self.lock = Lock()
-        self.cache_duration = timedelta(hours=12)
-        self.last_request = None
-        self.user_daily_limit = 100
-        self.user_daily_requests = []
-        self.user_daily_reset = None
-        # Load cache after initialization
-        self.load_cache()
+        self.cache_duration = timedelta(hours=6)
+        self.last_request_time = None
+        self.MIN_REQUEST_INTERVAL = timedelta(hours=1)
+        self.logger = logging.getLogger('FollowerCache')
 
-    def load_cache(self):
+    def _load_cache(self):
         try:
             if os.path.exists(self.cache_file):
                 with open(self.cache_file, 'r') as f:
                     data = json.load(f)
-                    self.cache = {
+                    return {
                         k: {
-                            'count': v['count'],
-                            'timestamp': datetime.fromisoformat(v['timestamp'])
+                            'count':
+                            v['count'],
+                            'timestamp':
+                            datetime.fromisoformat(v['timestamp']),
+                            'last_request':
+                            datetime.fromisoformat(v['last_request'])
+                            if 'last_request' in v else None
                         }
                         for k, v in data.items()
                     }
+            return {}
         except Exception as e:
-            logging.error(f"Error loading cache: {e}")
-            self.cache = {}
+            self.logger.error(f"Error loading cache: {e}")
+            return {}
 
-    def save_cache(self):
+    def _save_cache(self):
         try:
             with open(self.cache_file, 'w') as f:
                 data = {
                     k: {
-                        'count': v['count'],
-                        'timestamp': v['timestamp'].isoformat()
+                        'count':
+                        v['count'],
+                        'timestamp':
+                        v['timestamp'].isoformat(),
+                        'last_request':
+                        v['last_request'].isoformat()
+                        if v.get('last_request') else None
                     }
                     for k, v in self.cache.items()
                 }
                 json.dump(data, f)
         except Exception as e:
-            logging.error(f"Error saving cache: {e}")
+            self.logger.error(f"Error saving cache: {e}")
 
     def can_make_request(self, username):
         with self.lock:
             now = datetime.now()
-
-            # Clean up old requests
-            if self.user_daily_reset and now > self.user_daily_reset:
-                self.user_daily_requests = []
-                self.user_daily_reset = None
-
-            # If we don't have reset time, establish it
-            if not self.user_daily_reset and len(
-                    self.user_daily_requests) == 0:
-                self.user_daily_reset = now + timedelta(hours=24)
-
-            # Check if we've hit daily limit
-            if len(self.user_daily_requests) >= self.user_daily_limit:
-                return False
-
             cached_data = self.cache.get(username)
-            if cached_data:
-                age = now - cached_data['timestamp']
-                if age < self.cache_duration:
-                    return False  # Use cache if it's fresh enough
-
-            # Record this request
-            self.user_daily_requests.append(now)
-            return True
-
-    def update_rate_limits(self, headers):
-        with self.lock:
-            reset_time = headers.get('x-user-limit-24hour-reset')
-            if reset_time:
-                self.user_daily_reset = datetime.fromtimestamp(int(reset_time))
-
-            remaining = headers.get('x-user-limit-24hour-remaining')
-            if remaining:
-                self.user_daily_limit = int(
-                    headers.get('x-user-limit-24hour-limit', 100))
-                used = self.user_daily_limit - int(remaining)
-                self.user_daily_requests = [
-                    datetime.now() - timedelta(minutes=i) for i in range(used)
-                ]
+            if not cached_data:
+                return True
+            last_request = cached_data.get('last_request')
+            if not last_request or (now -
+                                    last_request) > self.MIN_REQUEST_INTERVAL:
+                return True
+            return False
 
     def get_follower_count(self, username):
         with self.lock:
             cached_data = self.cache.get(username)
             if cached_data:
-                age = datetime.now() - cached_data['timestamp']
-                return cached_data['count'], age < self.cache_duration
+                return cached_data['count'], True
             return None, False
 
     def set_follower_count(self, username, count):
         with self.lock:
+            now = datetime.now()
             self.cache[username] = {
                 'count': count,
-                'timestamp': datetime.now()
+                'timestamp': now,
+                'last_request': now
             }
-            self.save_cache()
+            self._save_cache()
+
+    def update_last_request(self, username):
+        with self.lock:
+            if username in self.cache:
+                self.cache[username]['last_request'] = datetime.now()
+                self._save_cache()
 
 
 class TweetService:
@@ -147,6 +131,8 @@ class TweetService:
         self.oauth2_handler = oauth2_handler
         self.media_service = media_service
         self.follower_cache = FollowerCache()
+        self._pending_posts = set()  # Track pending posts
+        self._post_lock = Lock()  # Thread-safe lock for posts
 
     @handle_rate_limit
     def post_reply(self, tweet_id, text):
@@ -170,25 +156,46 @@ class TweetService:
 
     @handle_rate_limit
     def post_tweet(self, text, in_reply_to_tweet_id=None, media_url=None):
-        client = self.oauth2_handler.get_client()
-        media_ids = None
+        # Create a unique key for this post attempt
+        post_key = f"{text}-{media_url}-{in_reply_to_tweet_id}"
 
-        if media_url:
-            temp_file_path = self.media_service.download_media(media_url)
-            if temp_file_path:
-                try:
-                    media_id = self.media_service.upload_media(temp_file_path)
-                    if media_id:
-                        media_ids = [media_id]
-                finally:
-                    os.unlink(temp_file_path)
+        with self._post_lock:
+            # Check if this post is already in progress
+            if post_key in self._pending_posts:
+                raise ValueError("This tweet is currently being processed")
 
-        response = client.create_tweet(
-            text=text,
-            in_reply_to_tweet_id=in_reply_to_tweet_id,
-            media_ids=media_ids,
-            user_auth=False)
-        return response.data['id']
+            try:
+                # Add to pending posts
+                self._pending_posts.add(post_key)
+
+                client = self.oauth2_handler.get_client()
+                media_ids = None
+
+                if media_url:
+                    temp_file_path = self.media_service.download_media(
+                        media_url)
+                    if temp_file_path:
+                        try:
+                            media_id = self.media_service.upload_media(
+                                temp_file_path)
+                            if media_id:
+                                media_ids = [media_id]
+                        finally:
+                            if os.path.exists(temp_file_path):
+                                os.unlink(temp_file_path)
+
+                # Attempt to post the tweet
+                response = client.create_tweet(
+                    text=text,
+                    in_reply_to_tweet_id=in_reply_to_tweet_id,
+                    media_ids=media_ids,
+                    user_auth=False)
+
+                return response.data['id']
+
+            finally:
+                # Always remove from pending posts
+                self._pending_posts.remove(post_key)
 
     @handle_rate_limit
     def get_tweet(self, tweet_id):
@@ -303,26 +310,22 @@ class TweetService:
     #@handle_rate_limit
     def get_user_metrics(self, username):
         try:
-            cached_count, is_fresh = self.follower_cache.get_follower_count(
+            # Check cache first
+            cached_count, is_cached = self.follower_cache.get_follower_count(
                 username)
 
-            if is_fresh:
-                return {'followers_count': cached_count, 'cached': True}
-
+            # If we can't make a request and have cached data, return it
             if not self.follower_cache.can_make_request(username):
                 if cached_count is not None:
                     return {'followers_count': cached_count, 'cached': True}
                 return {'followers_count': 0, 'error': 'Rate limited'}
 
+            # Try to get fresh data
             try:
                 client = self.oauth2_handler.get_client()
                 response = client.get_user(username=username,
                                            user_fields=['public_metrics'],
                                            user_auth=False)
-
-                # Update rate limits from response
-                self.follower_cache.update_rate_limits(
-                    response.response.headers)
 
                 if response.data and hasattr(response.data, 'public_metrics'):
                     metrics = response.data.public_metrics
@@ -332,15 +335,71 @@ class TweetService:
                         return metrics
 
             except TooManyRequests as e:
-                # Update rate limits even on error
-                self.follower_cache.update_rate_limits(e.response.headers)
+                # Log all headers from the response
+                logger.error(f"Rate limit exception: {str(e)}")
+                logger.error(f"Full response object: {dir(e.response)}")
+                logger.error(f"Response headers: {dict(e.response.headers)}")
+
+                # Try to get rate limit info
+                rate_limit_reset = e.response.headers.get('x-rate-limit-reset')
+                remaining_calls = e.response.headers.get(
+                    'x-rate-limit-remaining')
+                rate_limit_window = e.response.headers.get(
+                    'x-rate-limit-window')
+
+                # Also try alternate header names
+                if not rate_limit_reset:
+                    rate_limit_reset = e.response.headers.get(
+                        'ratelimit-reset')
+                if not remaining_calls:
+                    remaining_calls = e.response.headers.get(
+                        'ratelimit-remaining')
+                if not rate_limit_window:
+                    rate_limit_window = e.response.headers.get(
+                        'ratelimit-window')
+
+                # Log what we found
+                logger.error(
+                    f"Rate limit headers found: reset={rate_limit_reset}, remaining={remaining_calls}, window={rate_limit_window}"
+                )
+
+                if cached_count is not None:
+                    return {
+                        'followers_count': cached_count,
+                        'cached': True,
+                        'rate_limit_info': {
+                            'reset_at': rate_limit_reset,
+                            'remaining_calls': remaining_calls,
+                            'window': rate_limit_window,
+                            'all_headers':
+                            dict(e.response.headers
+                                 )  # Include all headers in response
+                        }
+                    }
+                return {
+                    'followers_count': 0,
+                    'error': 'Rate limited',
+                    'rate_limit_info': {
+                        'reset_at': rate_limit_reset,
+                        'remaining_calls': remaining_calls,
+                        'window': rate_limit_window,
+                        'all_headers':
+                        dict(e.response.headers
+                             )  # Include all headers in response
+                    }
+                }
+
+            except Exception as e:
+                logger.error(f"Non-rate-limit exception: {str(e)}",
+                             exc_info=True)
                 if cached_count is not None:
                     return {'followers_count': cached_count, 'cached': True}
-                raise
+                return {'followers_count': 0, 'error': str(e)}
 
             return {'followers_count': 0, 'error': 'No data available'}
 
         except Exception as e:
+            logger.error(f"Outer exception: {str(e)}", exc_info=True)
             if cached_count is not None:
                 return {'followers_count': cached_count, 'cached': True}
             return {'followers_count': 0, 'error': str(e)}
