@@ -223,7 +223,61 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-7. **Get User Profile**
+7. **Get Home Timeline**
+
+    - **Endpoint:** `/api/get_home_timeline`
+    - **Method:** `GET`
+    - **Headers:**
+        ```http
+        Authorization: Bearer <API_SECRET_KEY>
+        ```
+    - **Query Parameters:**
+        - `max_results` (integer, optional): Number of tweets to return (default: 15)
+    - **Response:**
+        - On Success:
+            ```json
+            {
+                "tweets": [
+                    {
+                        "id": "<tweet_id>",
+                        "text": "<tweet_text>",
+                        "author": {
+                            "id": "<author_id>",
+                            "name": "<author_name>",
+                            "username": "<author_username>"
+                        },
+                        "referenced_tweets": [
+                            {
+                                "id": "<referenced_tweet_id>",
+                                "text": "<referenced_tweet_text>"
+                            }
+                        ],
+                        "media": [
+                            {
+                                "media_key": "<media_key>",
+                                "type": "<media_type>",
+                                "url": "<media_url>"
+                            }
+                        ],
+                        "created_at": "<tweet_creation_date>",
+                        "public_metrics": {
+                            "retweet_count": 10,
+                            "reply_count": 5,
+                            "like_count": 25,
+                            "quote_count": 3
+                        }
+                    }
+                ]
+            }
+            ```
+        - On Failure:
+            ```json
+            {
+                "error": "An error occurred while retrieving the home timeline"
+            }
+            ```
+
+8. **Get User Profile**
 
     - **Endpoint:** `/api/get_user_profile`
     - **Method:** `GET`
@@ -295,7 +349,7 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-8. **Follow User**
+9. **Follow User**
 
     - **Endpoint:** `/api/follow_user`
     - **Method:** `POST`
@@ -345,7 +399,8 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-9. **Unfollow User**
+10. **Unfollow User**
+
     - **Endpoint:** `/api/unfollow_user`
     - **Method:** `POST`
     - **Headers:**

@@ -25,8 +25,9 @@ X-Proxy is an API for simplifying X (formerly Twitter) requests for a single aut
 -   Post new tweets (with optional media)
 -   ~~Manage draft tweets~~ not yet generalised for public use, sorry!
 -   Pull mentions
--   Follow and unfollow users
 -   Retrieve home timeline
+-   Lookup user profiles
+-   Follow and unfollow users
 
 ## API Endpoints
 
@@ -106,7 +107,19 @@ All routes are protected and require an Authorization header with a bearer token
         ```
     - **Response:** Returns a list of mentions for the authenticated user.
 
-7. **Get User Profile**
+7. **Get Home Timeline**
+
+    - **Endpoint:** `/api/get_home_timeline`
+    - **Method:** `GET`
+    - **Headers:**
+        ```http
+        Authorization: Bearer <API_SECRET_KEY>
+        ```
+    - **Query Parameters:**
+        - `max_results` (integer, optional): Number of tweets to return (default: 15)
+    - **Response:** Returns recent tweets from the authenticated user's home timeline.
+
+8. **Get User Profile**
 
     - **Endpoint:** `/api/get_user_profile`
     - **Method:** `GET`
@@ -119,7 +132,7 @@ All routes are protected and require an Authorization header with a bearer token
         - `user_id` (string, optional): The Twitter user ID
     - **Response:** Returns detailed user profile information including metrics, pinned tweet, and most recent tweet.
 
-8. **Follow User**
+9. **Follow User**
 
     - **Endpoint:** `/api/follow_user`
     - **Method:** `POST`
@@ -130,7 +143,7 @@ All routes are protected and require an Authorization header with a bearer token
     - **Request Body:** JSON object with `username`.
     - **Response:** Returns the result of the follow action.
 
-9. **Unfollow User**
+10. **Unfollow User**
     - **Endpoint:** `/api/unfollow_user`
     - **Method:** `POST`
     - **Headers:**
