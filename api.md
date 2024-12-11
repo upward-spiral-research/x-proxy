@@ -128,7 +128,47 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-4. **Get Drafts**
+4. **Retweet**
+   
+    - **Endpoint:** `/api/retweet`
+    - **Method:** `POST`
+    - **Headers:**
+        ```http
+        Authorization: Bearer <API_SECRET_KEY>
+        ```
+    - **Request Body:**
+        ```json
+        {
+            "tweet_id": "<tweet_id>"
+        }
+        ```
+    - **Response:**
+        - On Success:
+            ```json
+            {
+                "success": true,
+                "message": "Successfully retweeted tweet <tweet_id>",
+                "retweeted": true
+            }
+            ```
+        - On Tweet Not Found:
+            ```json
+            {
+                "success": false,
+                "error": "Tweet not found",
+                "message": "Detailed error message"
+            }
+            ```
+        - On Other Failures:
+            ```json
+            {
+                "success": false,
+                "error": "An error occurred while retweeting the tweet",
+                "message": "Detailed error message"
+            }
+            ```
+
+5. **Get Drafts**
 
     - **Endpoint:** `/api/get_drafts`
     - **Method:** `GET`
@@ -153,7 +193,7 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-5. **Post Draft Tweet**
+6. **Post Draft Tweet**
 
     - **Endpoint:** `/api/post_draft_tweet`
     - **Method:** `POST`
@@ -183,7 +223,7 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-6. **Pull Mentions**
+7. **Pull Mentions**
 
     - **Endpoint:** `/api/pull_mentions`
     - **Method:** `GET`
@@ -223,7 +263,7 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-7. **Get Home Timeline**
+8. **Get Home Timeline**
 
     - **Endpoint:** `/api/get_home_timeline`
     - **Method:** `GET`
@@ -277,7 +317,7 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-8. **Get User Profile**
+9. **Get User Profile**
 
     - **Endpoint:** `/api/get_user_profile`
     - **Method:** `GET`
@@ -349,7 +389,7 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-9. **Follow User**
+10. **Follow User**
 
     - **Endpoint:** `/api/follow_user`
     - **Method:** `POST`
@@ -399,7 +439,7 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-10. **Unfollow User**
+11. **Unfollow User**
 
     - **Endpoint:** `/api/unfollow_user`
     - **Method:** `POST`

@@ -13,7 +13,8 @@ def init_app():
         get_home_timeline_route,
         follow_user_route,
         unfollow_user_route,
-        get_user_profile_route
+        get_user_profile_route,
+        retweet_route
     )
 
 # Ensure routes are registered when this module is imported
