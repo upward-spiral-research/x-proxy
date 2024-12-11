@@ -223,7 +223,79 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-7. **Follow User**
+7. **Get User Profile**
+
+    - **Endpoint:** `/api/get_user_profile`
+    - **Method:** `GET`
+    - **Headers:**
+        ```http
+        Authorization: Bearer <API_SECRET_KEY>
+        ```
+    - **Query Parameters:**
+        - `username` (string, optional): The Twitter username (URL-encoded if contains special characters)
+        - `user_id` (string, optional): The Twitter user ID
+    - **Response:**
+        - On Success:
+            ```json
+            {
+                "id": "<user_id>",
+                "name": "<user_name>",
+                "username": "<username>",
+                "created_at": "<account_creation_date>",
+                "description": "<user_bio>",
+                "location": "<user_location>",
+                "pinned_tweet_id": "<pinned_tweet_id>",
+                "most_recent_tweet_id": "<most_recent_tweet_id>",
+                "profile_image_url": "<profile_image_url>",
+                "protected": false,
+                "public_metrics": {
+                    "followers_count": 1000,
+                    "following_count": 500,
+                    "tweet_count": 5000,
+                    "listed_count": 50
+                },
+                "url": "<user_website>",
+                "verified": false,
+                "pinned_tweet": {
+                    "id": "<tweet_id>",
+                    "text": "<tweet_text>",
+                    "created_at": "<tweet_creation_date>",
+                    "public_metrics": {
+                        "retweet_count": 10,
+                        "reply_count": 5,
+                        "like_count": 25,
+                        "quote_count": 3
+                    },
+                    ...
+                },
+                "most_recent_tweet": {
+                    "id": "<tweet_id>",
+                    "text": "<tweet_text>",
+                    "created_at": "<tweet_creation_date>",
+                    "public_metrics": {
+                        "retweet_count": 8,
+                        "reply_count": 3,
+                        "like_count": 15,
+                        "quote_count": 1
+                    },
+                    ...
+                }
+            }
+            ```
+        - On User Not Found:
+            ```json
+            {
+                "error": "User not found"
+            }
+            ```
+        - On Other Failures:
+            ```json
+            {
+                "error": "An error occurred while retrieving the user profile"
+            }
+            ```
+
+8. **Follow User**
 
     - **Endpoint:** `/api/follow_user`
     - **Method:** `POST`
@@ -273,7 +345,7 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-8. **Unfollow User**
+9. **Unfollow User**
     - **Endpoint:** `/api/unfollow_user`
     - **Method:** `POST`
     - **Headers:**

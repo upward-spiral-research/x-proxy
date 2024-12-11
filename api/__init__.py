@@ -12,7 +12,8 @@ def init_app():
         search_tweets_route,
         get_home_timeline_route,
         follow_user_route,
-        unfollow_user_route
+        unfollow_user_route,
+        get_user_profile_route
     )
 
 # Ensure routes are registered when this module is imported

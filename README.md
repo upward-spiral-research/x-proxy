@@ -106,7 +106,20 @@ All routes are protected and require an Authorization header with a bearer token
         ```
     - **Response:** Returns a list of mentions for the authenticated user.
 
-7. **Follow User**
+7. **Get User Profile**
+
+    - **Endpoint:** `/api/get_user_profile`
+    - **Method:** `GET`
+    - **Headers:**
+        ```http
+        Authorization: Bearer <API_SECRET_KEY>
+        ```
+    - **Query Parameters:**
+        - `username` (string, optional): The Twitter username
+        - `user_id` (string, optional): The Twitter user ID
+    - **Response:** Returns detailed user profile information including metrics, pinned tweet, and most recent tweet.
+
+8. **Follow User**
 
     - **Endpoint:** `/api/follow_user`
     - **Method:** `POST`
@@ -117,7 +130,7 @@ All routes are protected and require an Authorization header with a bearer token
     - **Request Body:** JSON object with `username`.
     - **Response:** Returns the result of the follow action.
 
-8. **Unfollow User**
+9. **Unfollow User**
     - **Endpoint:** `/api/unfollow_user`
     - **Method:** `POST`
     - **Headers:**

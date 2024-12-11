@@ -3,7 +3,6 @@ from config import Config
 from .process_x_response import process_x_response
 from .rate_limit_handler import handle_rate_limit
 
-
 class TweetService:
     # Common tweet fields to request
     TWEET_FIELDS = [
@@ -25,6 +24,9 @@ class TweetService:
         'protected', 'public_metrics', 'url', 'username', 'verified',
         'verified_type', 'withheld'
     ]
+
+    # Fields specific to user lookup
+    USER_EXPANSIONS = ['pinned_tweet_id', 'most_recent_tweet_id', 'affiliation.user_id']
 
     def __init__(self, oauth2_handler, media_service):
         self.oauth2_handler = oauth2_handler
@@ -163,8 +165,63 @@ class TweetService:
         client = self.oauth2_handler.get_client()
         # Remove @ symbol if present
         username = username.lstrip('@')
-        response = client.get_user(username=username, user_auth=False)
-        return response.data
+        response = client.get_user(
+            username=username, 
+            user_fields=self.USER_FIELDS,
+            expansions=self.USER_EXPANSIONS,
+            tweet_fields=self.TWEET_FIELDS,
+            user_auth=False
+        )
+        return self.process_user_response(response)
+
+    @handle_rate_limit
+    def get_user_by_id(self, user_id):
+        client = self.oauth2_handler.get_client()
+        response = client.get_user(
+            id=user_id, 
+            user_fields=self.USER_FIELDS,
+            expansions=self.USER_EXPANSIONS,
+            tweet_fields=self.TWEET_FIELDS,
+            user_auth=False
+        )
+        return self.process_user_response(response)
+
+    def process_user_response(self, response):
+        if not response.data:
+            return None
+
+        user = response.data
+
+        user_data = {
+            'id': user.id,
+            'name': user.name,
+            'username': user.username,
+            'created_at': user.created_at,
+            'description': user.description,
+            'location': user.location,
+            'most_recent_tweet_id': getattr(user, 'most_recent_tweet_id', None),
+            'pinned_tweet_id': getattr(user, 'pinned_tweet_id', None),
+            'profile_image_url': user.profile_image_url,
+            'protected': user.protected,
+            'public_metrics': user.public_metrics,
+            'url': getattr(user, 'url', None),
+            'verified': user.verified,
+            'verified_type': getattr(user, 'verified_type', None)
+        }
+
+        if response.includes and 'tweets' in response.includes:
+            for tweet in response.includes['tweets']:
+                tweet_id = tweet.id
+
+                if hasattr(user, 'pinned_tweet_id') and user.pinned_tweet_id is not None:
+                    if tweet_id is not None and int(tweet_id) == int(user.pinned_tweet_id):
+                        user_data['pinned_tweet'] = tweet.data
+
+                if hasattr(user, 'most_recent_tweet_id') and user.most_recent_tweet_id is not None:
+                    if tweet_id is not None and int(tweet_id) == int(user.most_recent_tweet_id):
+                        user_data['most_recent_tweet'] = tweet.data
+
+        return user_data
 
     @handle_rate_limit
     def follow_user(self, username):
@@ -175,7 +232,7 @@ class TweetService:
             raise ValueError(f"User with username {username} not found")
 
         # Now follow the user using their ID
-        response = client.follow_user(user_data.id, user_auth=False)
+        response = client.follow_user(user_data['id'], user_auth=False)
         return response.data
 
     @handle_rate_limit
@@ -187,5 +244,5 @@ class TweetService:
             raise ValueError(f"User with username {username} not found")
 
         # Now unfollow the user using their ID
-        response = client.unfollow_user(user_data.id, user_auth=False)
+        response = client.unfollow_user(user_data['id'], user_auth=False)
         return response.data
