@@ -223,96 +223,8 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-7. **Follow User**
+7. **Get User Profile**
 
-    - **Endpoint:** `/api/follow_user`
-    - **Method:** `POST`
-    - **Headers:**
-        ```http
-        Authorization: Bearer <API_SECRET_KEY>
-        ```
-    - **Request Body:**
-        ```json
-        {
-            "username": "<twitter_handle>"
-        }
-        ```
-    - **Response:**
-        - On Success (Public Account):
-            ```json
-            {
-                "success": true,
-                "message": "Successfully followed user @username.",
-                "following": true,
-                "pending_follow": false
-            }
-            ```
-        - On Success (Private Account):
-            ```json
-            {
-                "success": true,
-                "message": "Follow request sent to @username. Waiting for user approval.",
-                "following": false,
-                "pending_follow": true
-            }
-            ```
-        - On User Not Found:
-            ```json
-            {
-                "success": false,
-                "error": "User not found",
-                "message": "User with username username not found"
-            }
-            ```
-        - On Other Failures:
-            ```json
-            {
-                "success": false,
-                "error": "An error occurred while following the user",
-                "message": "Detailed error message"
-            }
-            ```
-
-8. **Unfollow User**
-    - **Endpoint:** `/api/unfollow_user`
-    - **Method:** `POST`
-    - **Headers:**
-        ```http
-        Authorization: Bearer <API_SECRET_KEY>
-        ```
-    - **Request Body:**
-        ```json
-        {
-            "username": "<twitter_handle>"
-        }
-        ```
-    - **Response:**
-        - On Success:
-            ```json
-            {
-                "success": true,
-                "message": "Successfully unfollowed user @username.",
-                "following": false
-            }
-            ```
-        - On User Not Found:
-            ```json
-            {
-                "success": false,
-                "error": "User not found",
-                "message": "User with username username not found"
-            }
-            ```
-        - On Other Failures:
-            ```json
-            {
-                "success": false,
-                "error": "An error occurred while unfollowing the user",
-                "message": "Detailed error message"
-            }
-            ```
-          
-9. **Get User Profile**
     - **Endpoint:** `/api/get_user_profile`
     - **Method:** `GET`
     - **Headers:**
@@ -382,7 +294,96 @@ This guide covers the API routes implemented using Flask in your current project
                 "error": "An error occurred while retrieving the user profile"
             }
             ```
-      
+
+8. **Follow User**
+
+    - **Endpoint:** `/api/follow_user`
+    - **Method:** `POST`
+    - **Headers:**
+        ```http
+        Authorization: Bearer <API_SECRET_KEY>
+        ```
+    - **Request Body:**
+        ```json
+        {
+            "username": "<twitter_handle>"
+        }
+        ```
+    - **Response:**
+        - On Success (Public Account):
+            ```json
+            {
+                "success": true,
+                "message": "Successfully followed user @username.",
+                "following": true,
+                "pending_follow": false
+            }
+            ```
+        - On Success (Private Account):
+            ```json
+            {
+                "success": true,
+                "message": "Follow request sent to @username. Waiting for user approval.",
+                "following": false,
+                "pending_follow": true
+            }
+            ```
+        - On User Not Found:
+            ```json
+            {
+                "success": false,
+                "error": "User not found",
+                "message": "User with username username not found"
+            }
+            ```
+        - On Other Failures:
+            ```json
+            {
+                "success": false,
+                "error": "An error occurred while following the user",
+                "message": "Detailed error message"
+            }
+            ```
+
+9. **Unfollow User**
+    - **Endpoint:** `/api/unfollow_user`
+    - **Method:** `POST`
+    - **Headers:**
+        ```http
+        Authorization: Bearer <API_SECRET_KEY>
+        ```
+    - **Request Body:**
+        ```json
+        {
+            "username": "<twitter_handle>"
+        }
+        ```
+    - **Response:**
+        - On Success:
+            ```json
+            {
+                "success": true,
+                "message": "Successfully unfollowed user @username.",
+                "following": false
+            }
+            ```
+        - On User Not Found:
+            ```json
+            {
+                "success": false,
+                "error": "User not found",
+                "message": "User with username username not found"
+            }
+            ```
+        - On Other Failures:
+            ```json
+            {
+                "success": false,
+                "error": "An error occurred while unfollowing the user",
+                "message": "Detailed error message"
+            }
+            ```
+
 ## Authentication
 
 All routes are protected and require an Authorization header with a bearer token. The token is validated against the `API_SECRET_KEY` set in your environment variables.
