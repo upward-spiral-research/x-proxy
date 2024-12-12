@@ -14,7 +14,8 @@ def init_app():
         follow_user_route,
         unfollow_user_route,
         get_user_profile_route,
-        retweet_route
+        retweet_route,
+        unretweet_route
     )
 
 # Ensure routes are registered when this module is imported
