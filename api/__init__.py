@@ -8,6 +8,7 @@ def init_app():
         post_draft_tweet_route,
         post_tweet_route,
         like_tweet_route,
+        unlike_tweet_route,
         retweet_route,
         unretweet_route,
         pull_mentions_route,
