@@ -23,6 +23,7 @@ X-Proxy is an API for simplifying X (formerly Twitter) requests for a single aut
 -   Get tweets by ID
 -   Search for tweets
 -   Post new tweets (with optional media)
+-   Retweet and unretweet
 -   ~~Manage draft tweets~~ not yet generalised for public use, sorry!
 -   Pull mentions
 -   Retrieve home timeline
@@ -76,7 +77,27 @@ All routes are protected and require an Authorization header with a bearer token
     - **Request Body:** JSON object with `text`, optional `in_reply_to_tweet_id`, and optional `media_url`.
     - **Response:** Returns the ID of the posted tweet.
 
-4. ~~**Get Drafts**~~ not yet generalised for public use, sorry
+4. **Retweet**
+    - **Endpoint:** `/api/retweet`
+    - **Method:** `POST`
+    - **Headers:**
+        ```http
+        Authorization: Bearer <API_SECRET_KEY>
+        ```
+    - **Request Body:** JSON object with `tweet_id`.
+    - **Response:** Returns the result of the retweet action. If successful, confirms the tweet was retweeted.
+    
+5. **Unretweet**
+    - **Endpoint:** `/api/unretweet`
+    - **Method:** `POST`
+    - **Headers:**
+        ```http
+        Authorization: Bearer <API_SECRET_KEY>
+        ```
+    - **Request Body:** JSON object with `source_tweet_id`.
+    - **Response:** Returns the result of the unretweet action. Note: Due to X's API behavior, this endpoint returns success even for tweets you weren't retweeting or that don't exist. A failure response indicates an unexpected issue.
+
+6. ~~**Get Drafts**~~ not yet generalised for public use, sorry
 
     - ~~**Endpoint:** `/api/get_drafts`~~
     - ~~**Method:** `GET`~~
@@ -86,7 +107,7 @@ All routes are protected and require an Authorization header with a bearer token
         ```
     - ~~**Response:** Returns a list of draft tweets.~~
 
-5. ~~**Post Draft Tweet**~~ not yet generalised for public use, sorry
+7. ~~**Post Draft Tweet**~~ not yet generalised for public use, sorry
 
     - ~~**Endpoint:** `/api/post_draft_tweet`~~
     - ~~**Method:** `POST`~~
@@ -97,7 +118,7 @@ All routes are protected and require an Authorization header with a bearer token
     - ~~**Request Body:** JSON object with `draft_tweet_record_id`.~~
     - ~~**Response:** Returns the ID and URL of the posted tweet.~~
 
-6. **Pull Mentions**
+8. **Pull Mentions**
 
     - **Endpoint:** `/api/pull_mentions`
     - **Method:** `GET`
@@ -107,7 +128,7 @@ All routes are protected and require an Authorization header with a bearer token
         ```
     - **Response:** Returns a list of mentions for the authenticated user.
 
-7. **Get Home Timeline**
+9. **Get Home Timeline**
 
     - **Endpoint:** `/api/get_home_timeline`
     - **Method:** `GET`
@@ -119,7 +140,7 @@ All routes are protected and require an Authorization header with a bearer token
         - `max_results` (integer, optional): Number of tweets to return (default: 15)
     - **Response:** Returns recent tweets from the authenticated user's home timeline.
 
-8. **Get User Profile**
+10. **Get User Profile**
 
     - **Endpoint:** `/api/get_user_profile`
     - **Method:** `GET`
@@ -132,7 +153,7 @@ All routes are protected and require an Authorization header with a bearer token
         - `user_id` (string, optional): The Twitter user ID
     - **Response:** Returns detailed user profile information including metrics, pinned tweet, and most recent tweet.
 
-9. **Follow User**
+11. **Follow User**
 
     - **Endpoint:** `/api/follow_user`
     - **Method:** `POST`
@@ -143,7 +164,7 @@ All routes are protected and require an Authorization header with a bearer token
     - **Request Body:** JSON object with `username`.
     - **Response:** Returns the result of the follow action.
 
-10. **Unfollow User**
+12. **Unfollow User**
     - **Endpoint:** `/api/unfollow_user`
     - **Method:** `POST`
     - **Headers:**

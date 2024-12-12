@@ -77,6 +77,22 @@ class TweetService:
         return response.data['id']
 
     @handle_rate_limit
+    def retweet(self, tweet_id):
+        client = self.oauth2_handler.get_client()
+        response = client.retweet(tweet_id=tweet_id, user_auth=False)
+        if not response or not response.data:
+            return None
+        return response.data
+
+    @handle_rate_limit
+    def unretweet(self, source_tweet_id):
+        client = self.oauth2_handler.get_client()
+        response = client.unretweet(source_tweet_id=source_tweet_id, user_auth=False)
+        if not response or not response.data:
+            return None
+        return response.data
+
+    @handle_rate_limit
     def get_tweet(self, tweet_id):
         client = self.oauth2_handler.get_client()
         response = client.get_tweet(
