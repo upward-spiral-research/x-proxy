@@ -128,7 +128,183 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-4. **Get Drafts**
+4. **Like Tweet**
+
+    - **Endpoint:** `/api/like_tweet`
+    - **Method:** `POST`
+    - **Headers:**
+        ```http
+        Authorization: Bearer <API_SECRET_KEY>
+        ```
+    - **Request Body:**
+        ```json
+        {
+            "tweet_id": "<tweet_id>"
+        }
+        ```
+    - **Response:**
+        - On Success:
+            ```json
+            {
+                "success": true,
+                "message": "Successfully liked tweet <tweet_id>",
+                "liked": true
+            }
+            ```
+        - On Failed Like:
+            ```json
+            {
+                "success": false,
+                "error": "Failed to like tweet",
+                "message": "The like operation was unsuccessful"
+            }
+            ```
+        - On Tweet Not Found:
+            ```json
+            {
+                "success": false,
+                "error": "Tweet not found",
+                "message": "Detailed error message"
+            }
+            ```
+        - On Other Failures:
+            ```json
+            {
+                "success": false,
+                "error": "An error occurred while liking the tweet",
+                "message": "Detailed error message"
+            }
+            ```
+          
+5. **Unlike Tweet**
+
+    - **Endpoint:** `/api/unlike_tweet`
+    - **Method:** `POST`
+    - **Headers:**
+        ```http
+        Authorization: Bearer <API_SECRET_KEY>
+        ```
+    - **Request Body:**
+        ```json
+        {
+            "tweet_id": "<tweet_id>"
+        }
+        ```
+    - **Response:**
+        - On Success:
+            ```json
+            {
+                "success": true,
+                "message": "Successfully unliked tweet <tweet_id>",
+                "liked": false
+            }
+            ```
+        - On Failed Unlike:
+            ```json
+            {
+                "success": false,
+                "error": "Failed to unlike tweet",
+                "message": "The unlike operation was unsuccessful"
+            }
+            ```
+        - On Tweet Not Found:
+            ```json
+            {
+                "success": false,
+                "error": "Tweet not found",
+                "message": "Detailed error message"
+            }
+            ```
+        - On Other Failures:
+            ```json
+            {
+                "success": false,
+                "error": "An error occurred while unliking the tweet",
+                "message": "Detailed error message"
+            }
+            ```
+          
+6. **Retweet**
+   
+    - **Endpoint:** `/api/retweet`
+    - **Method:** `POST`
+    - **Headers:**
+        ```http
+        Authorization: Bearer <API_SECRET_KEY>
+        ```
+    - **Request Body:**
+        ```json
+        {
+            "tweet_id": "<tweet_id>"
+        }
+        ```
+    - **Response:**
+        - On Success:
+            ```json
+            {
+                "success": true,
+                "message": "Successfully retweeted tweet <tweet_id>",
+                "retweeted": true
+            }
+            ```
+        - On Tweet Not Found:
+            ```json
+            {
+                "success": false,
+                "error": "Tweet not found",
+                "message": "Detailed error message"
+            }
+            ```
+        - On Other Failures:
+            ```json
+            {
+                "success": false,
+                "error": "An error occurred while retweeting the tweet",
+                "message": "Detailed error message"
+            }
+            ```
+
+7. **Unretweet**
+   
+    - **Endpoint:** `/api/unretweet`
+    - **Method:** `POST`
+    - **Headers:**
+        ```http
+        Authorization: Bearer <API_SECRET_KEY>
+        ```
+    - **Request Body:**
+        ```json
+        {
+            "source_tweet_id": "<source_tweet_id>"
+        }
+        ```
+    - **Response:**
+        - On Success (Note: The request succeeds even for tweets you weren't retweeting or that don't exist):
+            ```json
+            {
+                "success": true,
+                "message": "Successfully unretweeted tweet <source_tweet_id>. Note: This request succeeds even if you weren't retweeting this tweet or if the tweet doesn't exist",
+                "retweeted": false
+            }
+            ```
+        - On Failed Unretweet (unusual, indicates an unknown issue):
+            ```json
+            {
+                "success": false,
+                "error": "Failed to unretweet",
+                "message": "The unretweet operation was unsuccessful for an unknown reason. This is unusual as unretweet requests typically succeed even for non-existent tweets"
+            }
+            ```
+        - On Other Failures:
+            ```json
+            {
+                "success": false,
+                "error": "An error occurred while unretweeting the tweet",
+                "message": "Detailed error message"
+            }
+            ```
+   
+8. **Get Drafts**
 
     - **Endpoint:** `/api/get_drafts`
     - **Method:** `GET`
@@ -153,7 +329,7 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-5. **Post Draft Tweet**
+9. **Post Draft Tweet**
 
     - **Endpoint:** `/api/post_draft_tweet`
     - **Method:** `POST`
@@ -183,7 +359,7 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-6. **Pull Mentions**
+10. **Pull Mentions**
 
     - **Endpoint:** `/api/pull_mentions`
     - **Method:** `GET`
@@ -223,7 +399,61 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-7. **Get User Profile**
+11. **Get Home Timeline**
+
+    - **Endpoint:** `/api/get_home_timeline`
+    - **Method:** `GET`
+    - **Headers:**
+        ```http
+        Authorization: Bearer <API_SECRET_KEY>
+        ```
+    - **Query Parameters:**
+        - `max_results` (integer, optional): Number of tweets to return (default: 15)
+    - **Response:**
+        - On Success:
+            ```json
+            {
+                "tweets": [
+                    {
+                        "id": "<tweet_id>",
+                        "text": "<tweet_text>",
+                        "author": {
+                            "id": "<author_id>",
+                            "name": "<author_name>",
+                            "username": "<author_username>"
+                        },
+                        "referenced_tweets": [
+                            {
+                                "id": "<referenced_tweet_id>",
+                                "text": "<referenced_tweet_text>"
+                            }
+                        ],
+                        "media": [
+                            {
+                                "media_key": "<media_key>",
+                                "type": "<media_type>",
+                                "url": "<media_url>"
+                            }
+                        ],
+                        "created_at": "<tweet_creation_date>",
+                        "public_metrics": {
+                            "retweet_count": 10,
+                            "reply_count": 5,
+                            "like_count": 25,
+                            "quote_count": 3
+                        }
+                    }
+                ]
+            }
+            ```
+        - On Failure:
+            ```json
+            {
+                "error": "An error occurred while retrieving the home timeline"
+            }
+            ```
+
+12. **Get User Profile**
 
     - **Endpoint:** `/api/get_user_profile`
     - **Method:** `GET`
@@ -295,7 +525,7 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-8. **Follow User**
+13. **Follow User**
 
     - **Endpoint:** `/api/follow_user`
     - **Method:** `POST`
@@ -345,7 +575,8 @@ This guide covers the API routes implemented using Flask in your current project
             }
             ```
 
-9. **Unfollow User**
+14. **Unfollow User**
+
     - **Endpoint:** `/api/unfollow_user`
     - **Method:** `POST`
     - **Headers:**

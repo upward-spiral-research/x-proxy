@@ -33,27 +33,6 @@ class TweetService:
         self.media_service = media_service
 
     @handle_rate_limit
-    def post_reply(self, tweet_id, text):
-        client = self.oauth2_handler.get_client()
-        response = client.create_tweet(
-            text=text, in_reply_to_tweet_id=tweet_id)
-        return response.data['id']
-
-    @handle_rate_limit
-    def pull_mentions(self):
-        client = self.oauth2_handler.get_client()
-        response = client.get_users_mentions(
-            id=Config.TWITTER_USER_ID,
-            max_results=10,  # default is 10
-            # since_id (int | str | None) – Returns results with a Tweet ID greater than (that is, more recent than) the specified ‘since’ Tweet ID. There are limits to the number of Tweets that can be accessed through the API. If the limit of Tweets has occurred since the since_id, the since_id will be forced to the oldest ID available.
-            # start_time (datetime.datetime | str | None) – YYYY-MM-DDTHH:mm:ssZ (ISO 8601/RFC 3339). The oldest UTC timestamp from which the Tweets will be provided. Timestamp is in second granularity and is inclusive (for example, 12:00:01 includes the first second of the minute).
-            expansions=self.EXPANSIONS,
-            tweet_fields=self.TWEET_FIELDS,
-            user_fields=self.USER_FIELDS
-        )
-        return process_x_response(response)
-
-    @handle_rate_limit
     def post_tweet(self, text, in_reply_to_tweet_id=None, media_url=None):
         client = self.oauth2_handler.get_client()
         media_ids = None
@@ -76,6 +55,59 @@ class TweetService:
         )
         return response.data['id']
 
+    @handle_rate_limit
+    def post_reply(self, tweet_id, text):
+        client = self.oauth2_handler.get_client()
+        response = client.create_tweet(
+            text=text, in_reply_to_tweet_id=tweet_id)
+        return response.data['id']
+
+    @handle_rate_limit
+    def like_tweet(self, tweet_id):
+        client = self.oauth2_handler.get_client()
+        response = client.like(tweet_id=tweet_id, user_auth=False)
+        if not response or not response.data:
+            return None
+        return response.data
+
+    @handle_rate_limit
+    def unlike_tweet(self, tweet_id):
+        client = self.oauth2_handler.get_client()
+        response = client.unlike(tweet_id=tweet_id, user_auth=False)
+        if not response or not response.data:
+            return None
+        return response.data
+
+    @handle_rate_limit
+    def retweet(self, tweet_id):
+        client = self.oauth2_handler.get_client()
+        response = client.retweet(tweet_id=tweet_id, user_auth=False)
+        if not response or not response.data:
+            return None
+        return response.data
+
+    @handle_rate_limit
+    def unretweet(self, source_tweet_id):
+        client = self.oauth2_handler.get_client()
+        response = client.unretweet(source_tweet_id=source_tweet_id, user_auth=False)
+        if not response or not response.data:
+            return None
+        return response.data
+        
+    @handle_rate_limit
+    def pull_mentions(self):
+        client = self.oauth2_handler.get_client()
+        response = client.get_users_mentions(
+            id=Config.TWITTER_USER_ID,
+            max_results=10,  # default is 10
+            # since_id (int | str | None) – Returns results with a Tweet ID greater than (that is, more recent than) the specified ‘since’ Tweet ID. There are limits to the number of Tweets that can be accessed through the API. If the limit of Tweets has occurred since the since_id, the since_id will be forced to the oldest ID available.
+            # start_time (datetime.datetime | str | None) – YYYY-MM-DDTHH:mm:ssZ (ISO 8601/RFC 3339). The oldest UTC timestamp from which the Tweets will be provided. Timestamp is in second granularity and is inclusive (for example, 12:00:01 includes the first second of the minute).
+            expansions=self.EXPANSIONS,
+            tweet_fields=self.TWEET_FIELDS,
+            user_fields=self.USER_FIELDS
+        )
+        return process_x_response(response)
+        
     @handle_rate_limit
     def get_tweet(self, tweet_id):
         client = self.oauth2_handler.get_client()
