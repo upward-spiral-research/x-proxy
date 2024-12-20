@@ -93,20 +93,79 @@ class TweetService:
         if not response or not response.data:
             return None
         return response.data
+
+    def _should_filter_mention(self, tweet):
+        """
+        Determines if a mention should be filtered out based on configuration rules.
+
+        Args:
+            tweet (dict): The tweet to check
+
+        Returns:
+            bool: True if the tweet should be filtered out, False otherwise
+        """
+        # Get all text content to check
+        text_content = [tweet.get('text', '')]
+
+        # Add note tweet text if it exists
+        note_tweet = tweet.get('note_tweet', {})
+        if note_tweet and 'text' in note_tweet:
+            text_content.append(note_tweet['text'])
+
+        combined_text = ' '.join(text_content)
+
+        # Check for hashtags if configured
+        if Config.FILTER_HASHTAG_MENTIONS:
+            if '#' in combined_text:
+                # Look for hashtag pattern: # followed by word characters
+                import re
+                hashtags = re.findall(r'#\w+', combined_text)
+                if hashtags:
+                    return True
+
+        # Check mention count if configured
+        if Config.MAX_MENTION_ENTITIES > 0 and 'entities' in tweet:
+            mention_count = len(tweet['entities'].get('mentions', []))
+            if mention_count > Config.MAX_MENTION_ENTITIES:
+                return True
+
+        # Check for cashtags if configured
+        if Config.FILTER_CASHTAG_MENTIONS:
+            if '$' in combined_text:
+                # Look for cashtag pattern: $ followed by word characters
+                import re
+                cashtags = re.findall(r'\$[A-Za-z]\w*', combined_text)
+                if cashtags:
+                    # If we found cashtags, only allow whitelisted ones
+                    allowed = all(cashtag.upper() in Config.WHITELISTED_CASHTAGS for cashtag in cashtags)
+                    if not allowed:
+                        return True
+
+        return False
         
     @handle_rate_limit
     def pull_mentions(self):
         client = self.oauth2_handler.get_client()
         response = client.get_users_mentions(
             id=Config.TWITTER_USER_ID,
-            max_results=10,  # default is 10
+            max_results=20,  # default is 10
             # since_id (int | str | None) – Returns results with a Tweet ID greater than (that is, more recent than) the specified ‘since’ Tweet ID. There are limits to the number of Tweets that can be accessed through the API. If the limit of Tweets has occurred since the since_id, the since_id will be forced to the oldest ID available.
             # start_time (datetime.datetime | str | None) – YYYY-MM-DDTHH:mm:ssZ (ISO 8601/RFC 3339). The oldest UTC timestamp from which the Tweets will be provided. Timestamp is in second granularity and is inclusive (for example, 12:00:01 includes the first second of the minute).
             expansions=self.EXPANSIONS,
             tweet_fields=self.TWEET_FIELDS,
             user_fields=self.USER_FIELDS
         )
-        return process_x_response(response)
+        mentions = process_x_response(response)
+        if not mentions:
+            return []
+
+        # Filter mentions based on configuration
+        filtered_mentions = [
+            mention for mention in mentions 
+            if not self._should_filter_mention(mention)
+        ]
+
+        return filtered_mentions
         
     @handle_rate_limit
     def get_tweet(self, tweet_id):
